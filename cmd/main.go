@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"github.com/vitalis-virtus/simple-oauth/utils"
@@ -73,7 +73,7 @@ func getUserInfo(state string, code string) ([]byte, error) {
 
 	defer res.Body.Close()
 
-	content, err := ioutil.ReadAll(res.Body)
+	content, err := io.ReadAll(res.Body)
 
 	if err != nil {
 		fmt.Printf("could not parse response: %s\n", err.Error())
