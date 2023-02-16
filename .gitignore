@@ -15,10 +15,7 @@
 # vendor/
 
 # environment files and variables
-.env
+*.env
 
 # all json files
-.json
-
-# google project secret json
-client_secret_875417601436-g5sisoqr118k56saneb87aaq7u7hujf7.apps.googleusercontent.com.json
+*.json
