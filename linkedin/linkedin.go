@@ -6,11 +6,10 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/vitalis-virtus/simple-oauth/models"
 	"github.com/vitalis-virtus/simple-oauth/utils"
-	"io"
-	"net/http"
-
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/linkedin"
+	"io"
+	"net/http"
 )
 
 var (
