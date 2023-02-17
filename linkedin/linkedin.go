@@ -2,26 +2,26 @@ package linkedin
 
 import (
 	"context"
-	"encoding/json"
-	"log"
-
 	"fmt"
-	"io"
-	"net/http"
-
-	"github.com/m7shapan/njson"
+	"github.com/tidwall/gjson"
 	"github.com/vitalis-virtus/simple-oauth/models"
 	"github.com/vitalis-virtus/simple-oauth/utils"
+	"io"
+	"net/http"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/linkedin"
 )
 
 var (
-	State = "linkedin_state"
+	State        = "linkedin_state"
+	emailInfoUrl = "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))&oauth2_access_token="
+	userInfoUrl  = "https://api.linkedin.com/v2/me"
+	userPicUrl   = "https://api.linkedin.com/v2/me?projection=(id,firstName,lastName,profilePicture(displayImage~:playableStreams))"
 )
 
 func Callback(w http.ResponseWriter, r *http.Request) {
+	var UserProfileInfo models.ProfileInfo
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	stateCheck := r.FormValue("state")
@@ -38,68 +38,84 @@ func Callback(w http.ResponseWriter, r *http.Request) {
 
 	client := GetLinkedInConfig().Client(context.Background(), token)
 
-	req, err := http.NewRequest("GET", "https://api.linkedin.com/v2/me", nil)
+	// get user email
+	reqUserEmail, err := http.NewRequest("GET", emailInfoUrl, nil)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	req.Header.Set("Bearer", token.AccessToken)
+	reqUserEmail.Header.Set("Bearer", token.AccessToken)
 
-	res, err := client.Do(req)
+	resUserEmail, err := client.Do(reqUserEmail)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	defer res.Body.Close()
+	defer resUserEmail.Body.Close()
 
-	content, err := io.ReadAll(res.Body)
+	contentUserEmail, err := io.ReadAll(resUserEmail.Body)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("could not parse response: %s", err.Error()), http.StatusInternalServerError)
 	}
 
-	var mainUserInfo models.MainProfileInfo
-	err = json.Unmarshal(content, &mainUserInfo)
-	if err != nil {
-		log.Fatal("error unmarshaling json: ", err)
-	}
+	UserProfileInfo.Email = gjson.Get(string(contentUserEmail), "elements.0.handle~.emailAddress").String()
 
-	fmt.Fprint(w, mainUserInfo)
-
-	// getting profile picture urls
-
-	reqPic, err := http.NewRequest("GET", "https://api.linkedin.com/v2/me?projection=(id,first-name,last-name,email-address,profilePicture(displayImage~digitalmediaAsset:playableStreams))", nil)
+	// get user info
+	reqUserInfo, err := http.NewRequest("GET", userInfoUrl, nil)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	req.Header.Set("Bearer", token.AccessToken)
+	reqUserInfo.Header.Set("Bearer", token.AccessToken)
 
-	resPic, err := client.Do(reqPic)
+	resUserInfo, err := client.Do(reqUserInfo)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	defer res.Body.Close()
+	defer resUserEmail.Body.Close()
 
-	_, err = io.ReadAll(resPic.Body)
+	contentUserInfo, err := io.ReadAll(resUserInfo.Body)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("could not parse response: %s", err.Error()), http.StatusInternalServerError)
 	}
 
-	var picsResult models.ProfilePictureInfo
-	err = njson.Unmarshal(content, &picsResult)
-	if err != nil {
-		log.Fatal("error unmarshaling json: ", err)
-	}
-	log.Printf("picsResult: %+v", picsResult)
+	UserProfileInfo.ID = gjson.Get(string(contentUserInfo), "id").String()
+	UserProfileInfo.FirstName = gjson.Get(string(contentUserInfo), "localizedFirstName").String()
+	UserProfileInfo.LastName = gjson.Get(string(contentUserInfo), "localizedLastName").String()
 
-	// fmt.Fprint(w, string(contentPic))
+	// get user pic
+	reqUserPic, err := http.NewRequest("GET", userPicUrl, nil)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	reqUserPic.Header.Set("Bearer", token.AccessToken)
+
+	resUserPic, err := client.Do(reqUserPic)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	defer resUserPic.Body.Close()
+
+	contentUserPic, err := io.ReadAll(resUserPic.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("could not parse response: %s", err.Error()), http.StatusInternalServerError)
+	}
+
+	UserProfileInfo.Picture = gjson.Get(string(contentUserPic), "profilePicture.displayImage~.elements.#.identifiers.0.identifier").String()
+
+	fmt.Fprint(w, UserProfileInfo)
 
 }
 
