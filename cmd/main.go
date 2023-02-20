@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/vitalis-virtus/simple-oauth/github"
 	"github.com/vitalis-virtus/simple-oauth/linkedin"
+
 	"github.com/vitalis-virtus/simple-oauth/utils"
 	"golang.org/x/oauth2"
 
@@ -16,10 +18,8 @@ import (
 )
 
 var (
-	googleOAuthConfig   *oauth2.Config
-	linkedInOAuthConfig *oauth2.Config
-	randomState         = "random"
-	linkedInState       = "ranodmLinkedInState"
+	googleOAuthConfig *oauth2.Config
+	randomState       = "random"
 )
 
 func init() {
@@ -30,14 +30,6 @@ func init() {
 		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email"},
 		Endpoint:     google.Endpoint,
 	}
-
-	// linkedInOAuthConfig = &oauth2.Config{
-	// 	RedirectURL:  "http://localhost:8080/linkedincallback",
-	// 	ClientID:     utils.GoDotEnvVariable("LINKEDIN_CLIENT_ID"),
-	// 	ClientSecret: utils.GoDotEnvVariable("LINKED_IN_SECRET"),
-	// 	Scopes:       []string{"r_basicprofile", "r_emailaddress"},
-	// 	Endpoint:     linkedin.Endpoint,
-	// }
 }
 
 func main() {
@@ -45,11 +37,16 @@ func main() {
 
 	// todo change to "login-..."
 	http.HandleFunc("/login", handleLogin)
+
 	http.HandleFunc("/login-linkedin", handleLoginLinkedIn)
+	http.HandleFunc("/login-github", handleLoginGithub)
+
 	//todo change to "callback-google"
 	http.HandleFunc("/callback", handleCallback)
-	http.HandleFunc("/callback-linkedin", linkedin.Callback)
 
+	http.HandleFunc("/callback-linkedin", linkedin.Callback)
+	http.HandleFunc("/callback-github", github.Callback)
+	fmt.Println("Server is listening on port 8080")
 	http.ListenAndServe(":8080", nil)
 }
 
@@ -59,7 +56,9 @@ func handleHome(w http.ResponseWriter, r *http.Request) {
 		<body>
 			<a href="/login">Google Log In</a>
 			</br>
-			<a href="/login-linkedin">LinkedIn Log In</a>
+			<a href="/login-linkedin">Linkedin Log In</a>
+			</br>
+			<a href="/login-github">Github Log In w</a>
 		</body>
 	</html>
 	`
@@ -76,6 +75,12 @@ func handleLoginLinkedIn(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
+func handleLoginGithub(w http.ResponseWriter, r *http.Request) {
+	// url := github.GetGithubConfig().AuthCodeURL(github.State)
+	url := fmt.Sprintf("https://github.com/login/oauth/authorize?client_id=%s&redirect_uri=%s", utils.GoDotEnvVariable("GITHUB_CLIENT_ID"), "http://localhost:8080/callback-github")
+	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
 func handleCallback(w http.ResponseWriter, r *http.Request) {
 	content, err := getUserGoogleInfo(r.FormValue("state"), r.FormValue("code"))
 
@@ -88,23 +93,10 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(content))
 }
 
-// func handleLinkedInCallback(w http.ResponseWriter, r *http.Request) {
-// 	content, err := getUserLinkedInInfo(r.FormValue("state"), r.FormValue("code"))
-// 	if err != nil {
-// 		fmt.Println(err.Error())
-// 		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-// 		return
-// 	}
-
-// 	fmt.Fprint(w, string(content))
-// }
-
 func getUserGoogleInfo(state string, code string) ([]byte, error) {
 	if state != randomState {
 		return nil, fmt.Errorf("invalid oauth state")
 	}
-
-	fmt.Println("Code: ", code)
 
 	token, err := googleOAuthConfig.Exchange(context.Background(), code)
 	if err != nil {
